@@ -7,10 +7,10 @@ from sklearn.neighbors import KDTree
 from torch_geometric.data import Data as GraphData
 
 
-class TSPGraphDataset(torch.utils.data.Dataset):
+class TSPGraphDataset(torch.utils.data.Dataset): # So this should be Map-Style dataset 
   def __init__(self, data_file, sparse_factor=-1):
     self.data_file = data_file
-    self.sparse_factor = sparse_factor
+    self.sparse_factor = sparse_factor # What is sparse_factor?? 
     self.file_lines = open(data_file).read().splitlines()
     print(f'Loaded "{data_file}" with {len(self.file_lines)} lines')
 

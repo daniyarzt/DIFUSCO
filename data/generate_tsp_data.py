@@ -8,7 +8,7 @@ import lkh
 import numpy as np
 import tqdm
 import tsplib95
-from concorde.tsp import TSPSolver  # https://github.com/jvkersch/pyconcorde
+# from concorde.tsp import TSPSolver  # https://github.com/jvkersch/pyconcorde
 
 warnings.filterwarnings("ignore")
 
@@ -38,17 +38,18 @@ if __name__ == "__main__":
   with open(opts.filename, "w") as f:
     start_time = time.time()
     for b_idx in tqdm.tqdm(range(opts.num_samples // opts.batch_size)):
-      num_nodes = np.random.randint(low=opts.min_nodes, high=opts.max_nodes + 1)
+      num_nodes = np.random.randint(low=opts.min_nodes, high=opts.max_nodes + 1) # each batch has the same number of nodes? 
       assert opts.min_nodes <= num_nodes <= opts.max_nodes
 
-      batch_nodes_coord = np.random.random([opts.batch_size, num_nodes, 2])
+      batch_nodes_coord = np.random.random([opts.batch_size, num_nodes, 2]) # this line really defines the whole graph
 
-      def solve_tsp(nodes_coord):
+      def solve_tsp(nodes_coord): # given node coordinates gives you the tour ig
         if opts.solver == "concorde":
-          scale = 1e6
-          solver = TSPSolver.from_data(nodes_coord[:, 0] * scale, nodes_coord[:, 1] * scale, norm="EUC_2D")
-          solution = solver.solve(verbose=False)
-          tour = solution.tour
+          pass
+          # scale = 1e6
+          # solver = TSPSolver.from_data(nodes_coord[:, 0] * scale, nodes_coord[:, 1] * scale, norm="EUC_2D")
+          # solution = solver.solve(verbose=False)
+          # tour = solution.tour
         elif opts.solver == "lkh":
           scale = 1e6
           lkh_path = 'LKH-3.0.6/LKH'
@@ -66,10 +67,10 @@ if __name__ == "__main__":
 
         return tour
 
-      with Pool(opts.batch_size) as p:
+      with Pool(opts.batch_size) as p: # Parallel processing 
         tours = p.map(solve_tsp, [batch_nodes_coord[idx] for idx in range(opts.batch_size)])
 
-      for idx, tour in enumerate(tours):
+      for idx, tour in enumerate(tours): # each example represents one line, does each batch represent one file? nope 
         if (np.sort(tour) == np.arange(num_nodes)).all():
           f.write(" ".join(str(x) + str(" ") + str(y) for x, y in batch_nodes_coord[idx]))
           f.write(str(" ") + str('output') + str(" "))
