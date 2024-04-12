@@ -58,7 +58,8 @@ if __name__ == "__main__":
             # with Pool(opts.batch_size) as p: # Parallel processing 
             #     colorings = p.map(solve_coloring, batch_graphs)
 
-            for idx, coloring in enumerate(colorings): # each example represents one line, does each batch represent one file? nope 
+            for idx, coloring in enumerate(colorings):
+                f.write(str(num_nodes) + " edges ")
                 f.write(" ".join(str(x) + str(" ") + str(y) for x, y in batch_graphs[idx].edges))
                 f.write(str(" ") + str('output') + str(" "))
                 f.write(str(" ").join(str(c) for c in coloring))

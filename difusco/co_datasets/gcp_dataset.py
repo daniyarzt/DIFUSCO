@@ -9,43 +9,43 @@ import torch
 
 from torch_geometric.data import Data as GraphData
 
-
 class GCPDataset(torch.utils.data.Dataset):
-  def __init__(self, data_file, data_label_dir=None):
+  def __init__(self, data_file):
     self.data_file = data_file
-    self.file_lines = glob.glob(data_file)
-    self.data_label_dir = data_label_dir
-    print(f'Loaded "{data_file}" with {len(self.file_lines)} examples')
+    self.file_lines = open(data_file).read().splitlines()
+    print(f'Loaded "{data_file}" with {len(self.file_lines)} lines')
 
   def __len__(self):
     return len(self.file_lines)
 
   def get_example(self, idx):
-    with open(self.file_lines[idx], "rb") as f:
-      graph = pickle.load(f) # how does this work? 
+    """
+      Converts self.file_lines[idx] to num_nodes : int, node_labels : np.array, edges : np.array. 
+    """ 
+    # select sample
+    line = self.file_lines[idx]
 
-    num_nodes = graph.number_of_nodes()
+    # Clear leading/trailing characters
+    line = line.strip()
 
-    if self.data_label_dir is None:
-      node_labels = [_[1] for _ in graph.nodes(data='label')]
-      if node_labels is not None and node_labels[0] is not None:
-        node_labels = np.array(node_labels, dtype=np.int64)
-      else:
-        node_labels = np.zeros(num_nodes, dtype=np.int64)
-    else:
-      base_label_file = os.path.basename(self.file_lines[idx]).replace('.gpickle', '_unweighted.result')
-      node_label_file = os.path.join(self.data_label_dir, base_label_file)
-      with open(node_label_file, 'r') as f:
-        node_labels = [int(_) for _ in f.read().splitlines()]
-      node_labels = np.array(node_labels, dtype=np.int64)
-      assert node_labels.shape[0] == num_nodes
+    # get num_nodes and split edges
+    edges, node_labels = line.split(' output ')
+    num_nodes, edges = edges.split(' edges ')
+    num_nodes = int(num_nodes)
 
-    edges = np.array(graph.edges, dtype=np.int64)
+    edges = edges.split(' ')
+    edges = np.array([[int(edges[i]), int(edges[i + 1])] for i in range(0, len(edges), 2)])
+
+    edges = np.array(edges, dtype=np.int64)
     edges = np.concatenate([edges, edges[:, ::-1]], axis=0)
     # add self loop
     self_loop = np.arange(num_nodes).reshape(-1, 1).repeat(2, axis=1)
     edges = np.concatenate([edges, self_loop], axis=0)
     edges = edges.T
+
+    # get node labels 
+    node_labels = node_labels.split(' ')
+    node_labels = np.array(node_labels, dtype=np.int64)
 
     return num_nodes, node_labels, edges
 
@@ -54,9 +54,9 @@ class GCPDataset(torch.utils.data.Dataset):
     graph_data = GraphData(x=torch.from_numpy(node_labels),
                            edge_index=torch.from_numpy(edge_index))
 
-    point_indicator = np.array([num_nodes], dtype=np.int64)
+    point_indicator = np.array([num_nodes], dtype=np.int64) # kept this from mis_dataset
     return (
-        torch.LongTensor(np.array([idx], dtype=np.int64)),
+        torch.LongTensor(np.array([idx], dtype=np.int64)), # kept this from mis_dataset
         graph_data,
-        torch.from_numpy(point_indicator).long(),
+        torch.from_numpy(point_indicator).long(), # kept this from mis_dataset
     )
