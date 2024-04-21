@@ -14,6 +14,7 @@ from pytorch_lightning.utilities import rank_zero_info
 
 from pl_tsp_model import TSPModel
 from pl_mis_model import MISModel
+from pl_gcp_model import GCPModel
 
 
 def arg_parser():
@@ -45,6 +46,8 @@ def arg_parser():
   parser.add_argument('--inference_trick', type=str, default="ddim")
   parser.add_argument('--sequential_sampling', type=int, default=1)
   parser.add_argument('--parallel_sampling', type=int, default=1)
+
+  parser.add_argument('--num_colors', type=int, default=2)
 
   parser.add_argument('--n_layers', type=int, default=12)
   parser.add_argument('--hidden_dim', type=int, default=256)
@@ -78,6 +81,9 @@ def main(args):
   elif args.task == 'mis':
     model_class = MISModel
     saving_mode = 'max'
+  elif args.task == 'gcp':
+    model_class == GCPModel
+    solving_mode = 'max' # I'm not sure. 
   else:
     raise NotImplementedError
 
