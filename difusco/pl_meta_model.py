@@ -31,7 +31,7 @@ class COMetaModel(pl.LightningModule):
     elif self.diffusion_type == 'categorical':
       out_channels = 2
       self.diffusion = CategoricalDiffusion(
-          T=self.diffusion_steps, schedule=self.diffusion_schedule)
+          T=self.diffusion_steps, schedule=self.diffusion_schedule, K = self.args.num_colors)
     else:
       raise ValueError(f"Unknown diffusion type {self.diffusion_type}")
 
