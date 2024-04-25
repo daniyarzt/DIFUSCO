@@ -79,8 +79,8 @@ class CategoricalDiffusion(object):
   def sample(self, x0_onehot, t):
     # Select noise scales
     Q_bar = torch.from_numpy(self.Q_bar[t]).float().to(x0_onehot.device)
-    xt = torch.matmul(x0_onehot, Q_bar) # There used to be a weird reshape for Q_bar. 
-    return torch.multinomial(xt.clamp(0, 1).reshape(x0_onehot.shape), 1)
+    xt = torch.matmul(x0_onehot, Q_bar.reshape((Q_bar.shape[0], 1, self.K, self.K)))
+    return torch.multinomial(xt.reshape(xt.shape[0], self.K).clamp(0, 1), 1).reshape(xt.shape[0], 1, 1).float()
 
 class InferenceSchedule(object):
   def __init__(self, inference_schedule="linear", T=1000, inference_T=1000):
