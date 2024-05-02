@@ -29,9 +29,9 @@ class COMetaModel(pl.LightningModule):
       self.diffusion = GaussianDiffusion(
           T=self.diffusion_steps, schedule=self.diffusion_schedule)
     elif self.diffusion_type == 'categorical':
-      out_channels = 2
+      out_channels = self.args.K
       self.diffusion = CategoricalDiffusion(
-          T=self.diffusion_steps, schedule=self.diffusion_schedule, K = self.args.num_colors)
+          T=self.diffusion_steps, schedule=self.diffusion_schedule, K = self.args.K)
     else:
       raise ValueError(f"Unknown diffusion type {self.diffusion_type}")
 
@@ -98,6 +98,51 @@ class COMetaModel(pl.LightningModule):
               "interval": "step",
           },
       }
+    
+  def get_categorical_posterial_probs(self, target_t, t, x0_pred_prob, xt, diffusion): 
+    sz = x0_pred_prob.shape[1]
+    Q_bar_t_target_t = np.linalg.inv(diffusion.Q_bar[target_t]) @ diffusion.Q_bar[t]
+    Q_bar_t_target_t = torch.from_numpy(Q_bar_t_target_t).float().to(x0_pred_prob.device) # + 
+
+    Q_bar_t = torch.from_numpy(diffusion.Q_bar[t]).float().to(x0_pred_prob.device)
+    Q_bar_t_target = torch.from_numpy(diffusion.Q_bar[target_t]).float().to(x0_pred_prob.device)
+
+    xt = F.one_hot(xt.long(), num_classes=self.args.K).float()
+    xt = xt.reshape(x0_pred_prob.shape)
+
+    num_2 = torch.matmul(xt, Q_bar_t_target_t.permute((1, 0)).contiguous()) # (1, 27, 1, K) x (K, K) -> (1, 27, 1, K)
+    assert num_2.shape == x0_pred_prob.shape
+    num_1 = Q_bar_t_target
+    den = torch.matmul(Q_bar_t, xt.reshape((1, sz, self.args.K, 1))) # (K, K) x (1, 27, K, 1) -> (1, 27, K, 1)
+    # den = den.reshape()
+
+    # num_1 * num_2 is (1, 27, K, K)
+    answer = (num_1 * num_2 / den) # (1, 27, K, K) / (1, 27, K, 1) -> (1, 27, K, K)
+    answer = torch.matmul(x0_pred_prob, answer) # (1, 27, 1, K) x (1, 27, K, K) -> (1, 27, 1, K)
+
+    return answer
+  
+  def new_categorical_posterior(self, target_t, t, x0_pred_prob, xt):
+    diffusion = self.diffusion
+
+    if target_t is None:
+      target_t = t - 1
+    else: 
+      target_t = torch.from_numpy(target_t).view(1) 
+
+    xt_target_pred_prob = self.get_categorical_posterial_probs(target_t, t, x0_pred_prob, xt, diffusion)
+    sz = xt_target_pred_prob.shape[1]
+    assert xt_target_pred_prob.shape == (1, sz, 1, self.args.K)
+
+    if target_t > 0:
+      xt_target_pred_prob = xt_target_pred_prob.reshape((sz, self.args.K))
+      xt = torch.multinomial(xt_target_pred_prob, 1, replacement=True).reshape(1, sz, 1)
+    else:
+      xt = xt_target_pred_prob
+    
+    if self.sparse:
+      xt.reshape(-1)
+  
 
   def categorical_posterior(self, target_t, t, x0_pred_prob, xt):
     """Sample from the categorical posterior for a given time step.
@@ -203,3 +248,32 @@ class COMetaModel(pl.LightningModule):
     print("Validation dataset size:", len(val_dataset))
     val_dataloader = GraphDataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     return val_dataloader
+
+def test_categorical_posterior_probs():
+  class ArgsNamespace:
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+  args = ArgsNamespace(
+    diffusion_type = 'categorical', 
+    diffusion_schedule = 0.5, 
+    diffusion_steps = 2, 
+    K = 2, 
+    sparse_factor = 0
+  )
+  model = COMetaModel(
+    param_args = args
+  )
+  x0_pred_prob = torch.tensor([1.0, 0.0]).reshape(1, 1, 1, 2)
+  result = model.get_categorical_posterial_probs(
+    target_t = 1,  
+    t = 2, 
+    x0_pred_prob = x0_pred_prob, 
+    xt = torch.tensor([1]), 
+    diffusion = model.diffusion
+  )
+  print(result)
+
+if __name__ == '__main__':
+  print('Hello World!')
+  test_categorical_posterior_probs()

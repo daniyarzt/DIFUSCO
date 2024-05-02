@@ -67,6 +67,8 @@ def arg_parser():
   parser.add_argument('--do_test', action='store_true')
   parser.add_argument('--do_valid_only', action='store_true')
 
+  parser.add_argument('--K', type=int, default=2)
+
   args = parser.parse_args()
   return args
 

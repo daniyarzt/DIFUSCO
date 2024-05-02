@@ -60,6 +60,8 @@ class CategoricalDiffusion(object):
       self.alphabar = self.__cos_noise(np.arange(0, T + 1, 1)) / self.__cos_noise(
           0)  # Generate an extra alpha for bT
       self.beta = np.clip(1 - (self.alphabar[1:] / self.alphabar[:-1]), None, 0.999)
+    else: # for testing 
+      self.beta = np.full((self.K, ), schedule)
 
     beta = self.beta.reshape((-1, 1, 1))
     eye = np.eye(self.K).reshape((1, self.K, self.K))

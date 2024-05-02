@@ -85,7 +85,7 @@ class GCPModel(COMetaModel):
         edge_index.long().to(device) if edge_index is not None else None, 
       )
       x0_pred_prob = x0_pred.reshape((1, xt.shape[0], -1, self.num_colors)).softmax(dim = -1)
-      xt = self.categorical_posterior(target_t, t, x0_pred_prob, xt)
+      xt = self.new_categorical_posterior(target_t, t, x0_pred_prob, xt)
       return xt
 
   def gaussian_denoise_step(self, xt, t, device, edge_index=None, target_t=None):
