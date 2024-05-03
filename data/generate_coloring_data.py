@@ -13,7 +13,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--min_nodes", type=int, default=20)
     parser.add_argument("--max_nodes", type=int, default=50)
-    parser.add_argument("--density", type=int, default=0.5)
+    parser.add_argument("--num_colors", type=int, default=25)
+    parser.add_argument("--density", type=float, default=0.15)
     parser.add_argument("--num_samples", type=int, default=1024)
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--filename", type=str, default=None)
@@ -39,9 +40,6 @@ if __name__ == "__main__":
             num_nodes = np.random.randint(low=opts.min_nodes, high=opts.max_nodes + 1) 
             assert opts.min_nodes <= num_nodes <= opts.max_nodes
 
-            # fix this with Erdos-Renyi 
-            batch_graphs = [nx.erdos_renyi_graph(num_nodes, opts.density) for i in range(opts.batch_size)]
-
             def solve_coloring(g : nx.Graph):
                 if opts.solver == "greedy":
                     if opts.strategy is None: 
@@ -53,10 +51,17 @@ if __name__ == "__main__":
                 n = g.number_of_nodes()
                 return [coloring[i] for i in range(n)]
 
-            colorings = [solve_coloring(g) for g in batch_graphs]
+            batch_graphs = []
+            colorings = []
             # TODO: fix below
             # with Pool(opts.batch_size) as p: # Parallel processing 
             #     colorings = p.map(solve_coloring, batch_graphs)
+            while len(batch_graphs) < opts.batch_size:
+                g = nx.erdos_renyi_graph(num_nodes, opts.density)
+                coloring = solve_coloring(g)
+                if max(coloring) < opts.num_colors:
+                    batch_graphs.append(g)
+                    colorings.append(coloring)
 
             for idx, coloring in enumerate(colorings):
                 f.write(str(num_nodes) + " edges ")
