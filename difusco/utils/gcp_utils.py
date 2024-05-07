@@ -108,6 +108,38 @@ def gcp_decode_np(predict_labels_probs, adj_mat):
     solution = predict_labels_probs.argmax(axis = 1)
     return solution 
 
+# TODO: Could be too slow. Make faster.
+def gcp_greedy_decode_np(predict_labels_prbs, adj_mat : csr_matrix):
+    """Decode the labels to the GCP. Heatmap thingy :)"""
+    n_nodes = predict_labels_prbs.shape[0]
+    k = predict_labels_prbs.shape[1]
+    solution = [0 for v in range(n_nodes)]
+    is_colored = [False for v in range(n_nodes)]
+ 
+    candidates = []
+    for v in range(n_nodes):
+        for i in range(k):
+            candidates.append((predict_labels_prbs[v][i], (v, i)))
+    
+    candidates = sorted(candidates, reverse=True)
+    for prob, (v, i) in candidates:
+        if is_colored[v]:
+            continue
+        found_in_neighborhood = False
+        start = adj_mat.indptr[v]
+        end = adj_mat.indptr[v + 1]
+        for j in range(start, end):
+            u = adj_mat.indices[j]
+            if is_colored[u] and solution[u] == i:
+                found_in_neighborhood = True
+                break
+        if not found_in_neighborhood:
+            is_colored[v] = True
+            solution[v] = i
+    
+    return np.array(solution)
+    
+
 def count_gcp_violations(solved_solution, adj_mat):
     assert len(solved_solution.shape) == 1
     one_hot_solution = one_hot(torch.tensor(solved_solution)).numpy()
@@ -123,16 +155,7 @@ def test_gcp_decode_np():
     solved_solution = gcp_decode_np(probs, None)
     assert np.array_equal(solved_solution, np.array([1, 2]))
 
-def test_count_gcp_violations():
-    g = nx.Graph()
-    for v in range(4):
-        g.add_node(v)
-    for v in range(4):
-        for u in range(v + 1, 4):
-            if (v, u) == (1, 2) or (u, v) == (1, 2):
-                continue
-            g.add_edge(u, v)
-    solved_solution = np.array([0, 1, 1, 0])
+def get_csr_adj_mat(g):
     edges = list(g.edges())
     for edge in g.edges():
         edges.append((edge[1], edge[0]))
@@ -146,8 +169,20 @@ def test_count_gcp_violations():
     adj_mat = csr_matrix(
         (np.ones_like(edge_index_np[0]), (edge_index_np[0], edge_index_np[1]))
     )
-    assert count_gcp_violations(solved_solution, adj_mat) == 1
+    return adj_mat
 
+def test_count_gcp_violations():
+    g = nx.Graph()
+    for v in range(4):
+        g.add_node(v)
+    for v in range(4):
+        for u in range(v + 1, 4):
+            if (v, u) == (1, 2) or (u, v) == (1, 2):
+                continue
+            g.add_edge(u, v)
+    solved_solution = np.array([0, 1, 1, 0])
+    adj_mat = get_csr_adj_mat(g)
+    assert count_gcp_violations(solved_solution, adj_mat) == 1
 
 def test_sample_order():
     g = nx.Graph()
@@ -165,9 +200,33 @@ def test_sample_order():
     coloring2 = greedy_coloring(g, order)
     assert compare_colorings(g, coloring1, coloring2)
 
+def test_gcp_greedy_decode_np():
+    g = nx.Graph() 
+    for v in range(3):
+        g.add_node(v)
+    g.add_edge(0, 1) 
+    g.add_edge(1, 2) 
+    probs = np.array([[0.6, 0.4], [0.9, 0.1], [0.6, 0.4]])
+    adj_mat = get_csr_adj_mat(g)
+    solution = gcp_greedy_decode_np(probs, adj_mat)
+    assert (solution == np.array([1, 0, 1])).all()
+
+    g = nx.Graph() 
+    for v in range(4):
+        g.add_node(v) 
+    g.add_edge(0, 1) 
+    g.add_edge(0, 2) 
+    g.add_edge(1, 2) 
+    g.add_edge(2, 3) 
+    probs = np.array([[0.9, 0.1], [0.8, 0.2], [0.5, 0.5], [0.7, 0.1]])
+    adj_mat = get_csr_adj_mat(g) 
+    solution = gcp_greedy_decode_np(probs, adj_mat)
+    assert (solution == np.array([0, 0, 1, 0])).all()
+
 if __name__ == '__main__':
     for _ in range(150):
         test_sample_order()
     test_gcp_decode_np()   
     test_count_gcp_violations() 
+    test_gcp_greedy_decode_np()
     print('Tests passed successfully!')

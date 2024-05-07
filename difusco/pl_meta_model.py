@@ -137,11 +137,14 @@ class COMetaModel(pl.LightningModule):
     if target_t > 0:
       xt_target_pred_prob = xt_target_pred_prob.reshape((sz, self.args.K))
       xt = torch.multinomial(xt_target_pred_prob, 1, replacement=True).reshape(1, sz, 1)
+      if self.sparse:
+        xt = xt.reshape(-1)
     else:
       xt = xt_target_pred_prob
-    
-    if self.sparse:
-      xt.reshape(-1)
+      if self.sparse:
+        xt = xt.reshape(sz, -1)
+
+    return xt
   
 
   def categorical_posterior(self, target_t, t, x0_pred_prob, xt):

@@ -47,8 +47,6 @@ def arg_parser():
   parser.add_argument('--sequential_sampling', type=int, default=1)
   parser.add_argument('--parallel_sampling', type=int, default=1)
 
-  parser.add_argument('--num_colors', type=int, default=2)
-
   parser.add_argument('--n_layers', type=int, default=12)
   parser.add_argument('--hidden_dim', type=int, default=256)
   parser.add_argument('--sparse_factor', type=int, default=-1)
@@ -84,8 +82,8 @@ def main(args):
     model_class = MISModel
     saving_mode = 'max'
   elif args.task == 'gcp':
-    model_class == GCPModel
-    solving_mode = 'max' # I'm not sure. 
+    model_class = GCPModel
+    saving_mode = 'max' # I'm not sure. 
   else:
     raise NotImplementedError
 

@@ -18,7 +18,7 @@ class GCPModel(COMetaModel):
   def __init__(self, param_args=None):
     super(GCPModel, self).__init__(param_args=param_args, node_feature_only=True)
 
-    self.num_colors = self.args.num_colors
+    self.num_colors = self.args.K
     self.train_dataset = GCPDataset(
       data_file = os.path.join(self.args.storage_path, self.args.training_split),
     )
@@ -54,7 +54,7 @@ class GCPModel(COMetaModel):
     t = torch.from_numpy(t).float() 
     t = t.reshape(-1) 
     xt = xt.reshape(-1) 
-    edge_index = edge_index.to(node_labels.device).reshape(self.num_colors, -1) # ??
+    edge_index = edge_index.to(node_labels.device).reshape(2, -1) # ??
 
     x0_pred = self.forward(
       xt.float().to(node_labels.device), 
@@ -85,7 +85,7 @@ class GCPModel(COMetaModel):
         edge_index.long().to(device) if edge_index is not None else None, 
       )
       x0_pred_prob = x0_pred.reshape((1, xt.shape[0], -1, self.num_colors)).softmax(dim = -1)
-      xt = self.new_categorical_posterior(target_t, t, x0_pred_prob, xt)
+      xt = self.new_categorical_posterior(target_t, t, x0_pred_prob, xt.to(device))
       return xt
 
   def gaussian_denoise_step(self, xt, t, device, edge_index=None, target_t=None):
@@ -109,7 +109,7 @@ class GCPModel(COMetaModel):
     )
 
     for _ in range(self.args.sequential_sampling): 
-      xt = torch.randint(low = 0, high = self.num_colors, size = node_labels.float()).long()
+      xt = torch.randint(low = 0, high = self.num_colors, size = node_labels.shape).long()
       if self.args.parallel_sampling > 1: # ?
         xt = xt.repeat(self.args.parallel_sampling, 1, 1)
         xt = torch.randint(low = 0, high = self.num_colors, size = xt.shape).long()
@@ -128,7 +128,7 @@ class GCPModel(COMetaModel):
       for i in range(steps):
         t1, t2 = time_schedule(i)
         t1 = np.array([t1 for _ in range(batch_size)]).astype(int)
-        t1 = np.array([t2 for _ in range(batch_size)]).astype(int)
+        t2 = np.array([t2 for _ in range(batch_size)]).astype(int)
                 
         xt = self.categorical_denoise_step(
           xt, t1, device, edge_index, target_t=t2
@@ -142,7 +142,7 @@ class GCPModel(COMetaModel):
 
     splitted_predict_labels = np.split(predict_labels, all_sampling)
     solved_solutions = [gcp_decode_np(predict_labels, adj_mat) for  predict_labels in splitted_predict_labels]
-    solved_costs = [count_gcp_violations(solved_solution) for solved_solution in solved_solutions]
+    solved_costs = [count_gcp_violations(solved_solution, adj_mat) for solved_solution in solved_solutions]
     best_solved_cost = np.max(solved_costs)
 
     gt_cost = node_labels.cpu().numpy().sum() 
