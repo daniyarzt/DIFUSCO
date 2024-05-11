@@ -33,18 +33,23 @@ class GCPDataset(torch.utils.data.Dataset):
     num_nodes, edges = edges.split(' edges ')
     num_nodes = int(num_nodes)
 
-    edges = edges.split(' ')
+    edges = edges.strip()
+    edges = edges.split(' ') if edges != "" else []
     edges = np.array([[int(edges[i]), int(edges[i + 1])] for i in range(0, len(edges), 2)])
 
     edges = np.array(edges, dtype=np.int64)
-    edges = np.concatenate([edges, edges[:, ::-1]], axis=0)
+    if edges.shape != (0, ):
+      edges = np.concatenate([edges, edges[:, ::-1]], axis=0)
     # add self loop
     self_loop = np.arange(num_nodes).reshape(-1, 1).repeat(2, axis=1)
-    edges = np.concatenate([edges, self_loop], axis=0)
+    if edges.shape != (0, ):
+      edges = np.concatenate([edges, self_loop], axis=0)
+    else:
+      edges = self_loop
     edges = edges.T
 
     # get node labels 
-    node_labels = node_labels.split(' ')
+    node_labels = node_labels.strip().split(' ')
     node_labels = np.array(node_labels, dtype=np.int64)
 
     return num_nodes, node_labels, edges

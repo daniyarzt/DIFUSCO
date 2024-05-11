@@ -83,7 +83,7 @@ def main(args):
     saving_mode = 'max'
   elif args.task == 'gcp':
     model_class = GCPModel
-    saving_mode = 'max' # I'm not sure. 
+    saving_mode = 'min' # I think it's the which one is restored 
   else:
     raise NotImplementedError
 

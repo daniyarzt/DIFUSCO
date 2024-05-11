@@ -11,7 +11,7 @@ import torch.utils.data
 from co_datasets.gcp_dataset import GCPDataset
 from pl_meta_model import COMetaModel
 from utils.diffusion_schedulers import InferenceSchedule
-from utils.gcp_utils import gcp_decode_np
+from utils.gcp_utils import gcp_greedy_decode_np
 from utils.gcp_utils import count_gcp_violations
 
 class GCPModel(COMetaModel):
@@ -104,7 +104,7 @@ class GCPModel(COMetaModel):
     edge_index = edge_index.to(node_labels.device).reshape(2, -1)
     edge_index_np = edge_index.cpu().numpy() 
 
-    adj_mat = scipy.sparse.coo_matrix(
+    adj_mat = scipy.sparse.csr_matrix(
       (np.ones_like(edge_index_np[0]), (edge_index_np[0], edge_index_np[1]))
     )
 
@@ -141,7 +141,7 @@ class GCPModel(COMetaModel):
     all_sampling = self.args.sequential_sampling * self.args.parallel_sampling
 
     splitted_predict_labels = np.split(predict_labels, all_sampling)
-    solved_solutions = [gcp_decode_np(predict_labels, adj_mat) for  predict_labels in splitted_predict_labels]
+    solved_solutions = [gcp_greedy_decode_np(predict_labels, adj_mat) for  predict_labels in splitted_predict_labels]
     solved_costs = [count_gcp_violations(solved_solution, adj_mat) for solved_solution in solved_solutions]
     best_solved_cost = np.max(solved_costs)
 
