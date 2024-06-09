@@ -67,12 +67,21 @@ class CategoricalDiffusion(object):
     eye = np.eye(self.K).reshape((1, self.K, self.K))
     ones = np.ones((self.K, self.K)).reshape((1, self.K, self.K))
 
-    self.Qs = (1 - beta) * eye + (beta / 2) * ones
+    self.Qs = (1 - beta) * eye + (beta / K) * ones
 
     Q_bar = [np.eye(self.K)]
     for Q in self.Qs:
       Q_bar.append(Q_bar[-1] @ Q)
     self.Q_bar = np.stack(Q_bar, axis=0)
+
+    gamma = 1 / (1 - beta)
+    nu = - beta / (self.K * (1 - beta))
+    self.inv_Qs = gamma * eye + nu * ones
+
+    inv_Q_bar = [np.eye(self.K)]
+    for Q in self.inv_Qs:
+      inv_Q_bar.append(inv_Q_bar[-1] @ Q)
+    self.inv_Q_bar = np.stack(inv_Q_bar, axis = 0)
 
   def __cos_noise(self, t):
     offset = 0.008

@@ -143,15 +143,19 @@ class GCPModel(COMetaModel):
     splitted_predict_labels = np.split(predict_labels, all_sampling)
     solved_solutions = [gcp_greedy_decode_np(predict_labels, adj_mat) for  predict_labels in splitted_predict_labels]
     solved_costs = [count_gcp_violations(solved_solution, adj_mat) for solved_solution in solved_solutions]
-    best_solved_cost = np.max(solved_costs)
+    mean_solved_cost = np.mean(solved_costs)
 
     gt_cost = node_labels.cpu().numpy().sum() 
     metrics = {
-      f"{split}/gt_cost": gt_cost
+      f"{split}/gt_cost": gt_cost,
+      f"{split}/mean_solved_cost": mean_solved_cost, 
+      f"{split}/std_sovled_cost": np.std(solved_costs),
     }
     for k, v in metrics.items():
       self.log(k, v, on_epoch=True, sync_dist=True)
-    self.log(f"{split}/solved_cost", best_solved_cost, prog_bar=True, on_epoch=True, sync_dist=True)
+    self.log(f"{split}/solved_cost", mean_solved_cost, prog_bar=True, on_epoch=True, sync_dist=True)
+    return metrics
+
 
   def validation_step(self, batch, batch_idx):
     return self.test_step(batch, batch_idx, split='val')

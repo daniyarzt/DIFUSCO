@@ -101,7 +101,8 @@ class COMetaModel(pl.LightningModule):
     
   def get_categorical_posterial_probs(self, target_t, t, x0_pred_prob, xt, diffusion): 
     sz = x0_pred_prob.shape[1]
-    Q_bar_t_target_t = np.linalg.inv(diffusion.Q_bar[target_t]) @ diffusion.Q_bar[t]
+    # Q_bar_t_target_t = np.linalg.inv(diffusion.Q_bar[target_t]) @ diffusion.Q_bar[t]
+    Q_bar_t_target_t = diffusion.inv_Q_bar[target_t] @ diffusion.Q_bar[t]
     Q_bar_t_target_t = torch.from_numpy(Q_bar_t_target_t).float().to(x0_pred_prob.device) # + 
 
     Q_bar_t = torch.from_numpy(diffusion.Q_bar[t]).float().to(x0_pred_prob.device)
