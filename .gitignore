@@ -4,3 +4,8 @@ notes.md
 /danik-tmp
 .DS_Store
 strategy_comparison.ipynb
+/fastColor
+*.pyc
+/planted
+/planted_small
+ DIMACS machine benchmark 2/

@@ -9,9 +9,10 @@ import torch.nn.functional as F
 import torch.utils.data
 
 from co_datasets.gcp_dataset import GCPDataset
+from co_datasets.mis_dataset import MISDataset
 from pl_meta_model import COMetaModel
 from utils.diffusion_schedulers import InferenceSchedule
-from utils.gcp_utils import gcp_greedy_decode_np
+from utils.gcp_utils import gcp_decode_np, gcp_greedy_decode_np
 from utils.gcp_utils import count_gcp_violations
 
 class GCPModel(COMetaModel):
@@ -19,17 +20,29 @@ class GCPModel(COMetaModel):
     super(GCPModel, self).__init__(param_args=param_args, node_feature_only=True)
 
     self.num_colors = self.args.K
-    self.train_dataset = GCPDataset(
+    # self.train_dataset = GCPDataset(
+    #   data_file = os.path.join(self.args.storage_path, self.args.training_split),
+    # )
+
+    # self.test_dataset = GCPDataset(
+    #   data_file = os.path.join(self.args.storage_path, self.args.test_split),
+    # )
+
+    # self.validation_dataset = GCPDataset(
+    #   data_file = os.path.join(self.args.storage_path, self.args.validation_split),
+    # )
+    self.train_dataset = MISDataset(
       data_file = os.path.join(self.args.storage_path, self.args.training_split),
     )
 
-    self.test_dataset = GCPDataset(
+    self.test_dataset = MISDataset(
       data_file = os.path.join(self.args.storage_path, self.args.test_split),
     )
 
-    self.validation_dataset = GCPDataset(
+    self.validation_dataset = MISDataset(
       data_file = os.path.join(self.args.storage_path, self.args.validation_split),
     )
+    self.train_epoch_losses = []
 
   def forward(self, x, t, edge_index):
     return self.model(x, t, edge_index = edge_index)
@@ -65,6 +78,7 @@ class GCPModel(COMetaModel):
     loss_func = nn.CrossEntropyLoss() 
     loss = loss_func(x0_pred, node_labels) # ?? 
     self.log("train/loss", loss)
+    self.train_epoch_losses.append(loss.item())
     return loss
 
   def gaussian_training_step(self, batch, batch_idx):
@@ -141,21 +155,35 @@ class GCPModel(COMetaModel):
     all_sampling = self.args.sequential_sampling * self.args.parallel_sampling
 
     splitted_predict_labels = np.split(predict_labels, all_sampling)
-    solved_solutions = [gcp_greedy_decode_np(predict_labels, adj_mat) for  predict_labels in splitted_predict_labels]
-    solved_costs = [count_gcp_violations(solved_solution, adj_mat) for solved_solution in solved_solutions]
-    mean_solved_cost = np.mean(solved_costs)
+    num_edges = (adj_mat.sum() - len(node_labels)) / 2
+    argmax_solutions = [gcp_decode_np(predict_labels, adj_mat) for  predict_labels in splitted_predict_labels]
+    greedy_solutions = [gcp_greedy_decode_np(predict_labels, adj_mat) for  predict_labels in splitted_predict_labels]
+    violations_argmax = [count_gcp_violations(solved_solution, adj_mat) for solved_solution in argmax_solutions]
+    violations_greedy = [count_gcp_violations(solved_solution, adj_mat) for solved_solution in greedy_solutions]
 
     gt_cost = node_labels.cpu().numpy().sum() 
     metrics = {
-      f"{split}/gt_cost": gt_cost,
-      f"{split}/mean_solved_cost": mean_solved_cost, 
-      f"{split}/std_sovled_cost": np.std(solved_costs),
+      f"{split}/gt_cost": gt_cost, # actually doesn't tell anything... 
+      f"{split}/mean_violations_argmax": np.mean(violations_argmax),
+      f"{split}/mean_violations_greedy": np.mean(violations_greedy),
+      f"{split}/mean_violations_rate_argmax": np.mean(violations_argmax) / num_edges,
+      f"{split}/mean_violations_rate_greedy": np.mean(violations_greedy) / num_edges,  
+      f"{split}/std_violations_argmax": np.std(violations_argmax),
+      f"{split}/std_violations_mean": np.std(violations_greedy), 
+      f"{split}/num_solutions": len(argmax_solutions), 
+      f"{split}/count_argmax_zeros": (np.array(violations_argmax) == 0).sum(), 
+      f"{split}/count_greedy_zeros": (np.array(violations_greedy) == 0).sum()
     }
     for k, v in metrics.items():
       self.log(k, v, on_epoch=True, sync_dist=True)
-    self.log(f"{split}/solved_cost", mean_solved_cost, prog_bar=True, on_epoch=True, sync_dist=True)
+    self.log(f"{split}/solved_cost", np.mean(violations_greedy), prog_bar=True, on_epoch=True, sync_dist=True)
     return metrics
 
 
   def validation_step(self, batch, batch_idx):
     return self.test_step(batch, batch_idx, split='val')
+  
+  def on_train_epoch_end(self):
+    losses = self.train_epoch_losses
+    self.train_epoch_losses = []
+    self.log('train/average_loss', np.mean(losses), on_epoch=True, sync_dist=True)

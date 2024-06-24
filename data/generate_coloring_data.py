@@ -1,4 +1,6 @@
 import argparse
+import os
+import pickle
 from turtle import color
 import numpy as np 
 import pprint as pp
@@ -79,7 +81,7 @@ if __name__ == "__main__":
     parser.add_argument("--density", type=float, default=0.15)
     parser.add_argument("--num_samples", type=int, default=1024)
     parser.add_argument("--batch_size", type=int, default=64)
-    parser.add_argument("--filename", type=str, default=None)
+    parser.add_argument("--folder", type=str, default=None)
     parser.add_argument("--solver", type=str, default="greedy")
     parser.add_argument("--strategy", type=str, default=None)
     parser.add_argument("--do_checks", type=bool, default=False)
@@ -92,48 +94,56 @@ if __name__ == "__main__":
     # Setting the random seed 
     np.random.seed(opts.seed)
 
-    if opts.filename is None:
-        opts.filename = f"coloring{opts.min_nodes}-{opts.max_nodes}_" + opts.solver + ".txt"
-    
+    if opts.folder is None:
+        opts.folder = f"coloring{opts.min_nodes}-{opts.max_nodes}_" + opts.solver + '_data/'
+    assert(opts.folder[-1] == '/')
+    os.makedirs(opts.folder)
+
     # Pretty print the run args
     pp.pprint(vars(opts)) 
     
-    with open(opts.filename, "w") as f:
-        start_time = time.time()
-        for b_idx in tqdm.tqdm(range(opts.num_samples // opts.batch_size)):
-            num_nodes = np.random.randint(low=opts.min_nodes, high=opts.max_nodes + 1) 
-            assert opts.min_nodes <= num_nodes <= opts.max_nodes
+    sample_number = 0
+    start_time = time.time()
+    for b_idx in tqdm.tqdm(range(opts.num_samples // opts.batch_size)):
+        num_nodes = np.random.randint(low=opts.min_nodes, high=opts.max_nodes + 1) 
+        assert opts.min_nodes <= num_nodes <= opts.max_nodes
 
-            
+        batch_graphs = []
+        colorings = []
+        # TODO: fix below
+        # with Pool(opts.batch_size) as p: # Parallel processing 
+        #     colorings = p.map(solve_coloring, batch_graphs)
+        while len(batch_graphs) < opts.batch_size:
+            g = nx.erdos_renyi_graph(num_nodes, opts.density)
+            if opts.solver != 'planted':
+                coloring = solve_coloring(g, opts.solver, opts.strategy, opts.num_colors)
+            else:
+                coloring = list(np.random.randint(0, opts.num_colors, size = num_nodes))
+                new_edges = [(u, v) for (u, v) in g.edges() if coloring[v] != coloring[u]]
+                g_new = nx.Graph()
+                g_new.add_edges_from(new_edges)
+                g = g_new
+            if max(coloring) < opts.num_colors:
+                batch_graphs.append(g)
 
-            batch_graphs = []
-            colorings = []
-            # TODO: fix below
-            # with Pool(opts.batch_size) as p: # Parallel processing 
-            #     colorings = p.map(solve_coloring, batch_graphs)
-            while len(batch_graphs) < opts.batch_size:
-                g = nx.erdos_renyi_graph(num_nodes, opts.density)
-                if opts.solver != 'planted':
-                    coloring = solve_coloring(g, opts.solver, opts.strategy, opts.num_colors)
-                else:
-                    coloring = list(np.random.randint(0, opts.num_colors, size = num_nodes))
-                    new_edges = [(u, v) for (u, v) in g.edges() if coloring[v] != coloring[u]]
-                    g_new = nx.Graph()
-                    g_new.add_edges_from(new_edges)
-                    g = g_new
-                if max(coloring) < opts.num_colors:
-                    batch_graphs.append(g)
+                if opts.do_checks == True:
+                    do_checks(g, coloring, opts.num_colors) 
+                colorings.append(coloring)
 
-                    if opts.do_checks == True:
-                        do_checks(g, coloring, opts.num_colors) 
-                    colorings.append(coloring)
+        for idx, coloring in enumerate(colorings):
+            g_final = nx.Graph() 
+            for (v, c) in enumerate(coloring):
+                g_final.add_node(v, label = c)
+            g_final.add_edges_from(batch_graphs[idx].edges)
 
-            for idx, coloring in enumerate(colorings):
-                f.write(str(num_nodes) + " edges ")
-                f.write(" ".join(str(x) + str(" ") + str(y) for x, y in batch_graphs[idx].edges))
-                f.write(str(" ") + str('output') + str(" "))
-                f.write(str(" ").join(str(c) for c in coloring))
-                f.write("\n")
+            with open(opts.folder + str(sample_number) + '.pickle', 'wb') as f:
+                pickle.dump(g_final, f)
+            sample_number += 1
+            # f.write(str(num_nodes) + " edges ")
+            # f.write(" ".join(str(x) + str(" ") + str(y) for x, y in batch_graphs[idx].edges))
+            # f.write(str(" ") + str('output') + str(" "))
+            # f.write(str(" ").join(str(c) for c in coloring))
+            # f.write("\n")
 
     end_time = time.time() - start_time
 
